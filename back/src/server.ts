@@ -17,7 +17,10 @@ app.use(
   cors((req, callback) => {
     const options = {
       credentials: true,
-      origin: 'http://' + req.headers.host?.replace(':3500',':4200')??'',
+        origin: [
+            'http://' + req.headers.host?.replace(':3500', ':4200') ?? '',
+            'http://' + req.headers.host?.replace(':3500', '') ?? '',
+        ],
     };
     callback(null, options);
   })
