@@ -56,7 +56,7 @@ const isAuthorized = (username:string) => true;
 
 const DBLayer = require('f://Apps/node/sqliteapp/connect');
 
-app.use('/mysso/ws/protected/secret', (req, res) => {
+app.use('/mysso/ws/protected/secret', async (req, res) => {
   const username = getUserName(req);
   const accessToken = getAccessToken(req);
 
@@ -151,11 +151,15 @@ app.use('/mysso/ws/protected/secret', (req, res) => {
 		console.log('return json');
 		return res.json(ret);
 	}
-  const db = DBLayer.sqlite_connect(callback);
+  // sqlite test	
+  // const db = DBLayer.sqlite_connect(callback);
   // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'
+  // ms sql test
+  const db = await DBLayer.mssql_connect(callback);
   } else {
 	res.json({hello: username, authorized: false});
   }
+  //TEST 3 ms sql windows auth fails: [Microsoft][SQL Server Native Client 11.0][SQL Server]Login failed for user 'domain\\owner'."
 });
 
 app.use('/mysso/ws/myhost',(req, res) => {
