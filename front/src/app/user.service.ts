@@ -100,7 +100,7 @@ export class UserService {
         .toPromise();
       return secret;
     } catch (e) {
-      throw { msg: 'You probably need to be connected to see my secret' };
+      throw { msg: e.message};//'You probably need to be connected to see my secret' };
     }
   }
 }
