@@ -52,29 +52,16 @@ const getUserName = (req : any) => req?.session?.sso?.user?.name?.toLowerCase();
 const getAccessToken = (req : any) => req?.session?.sso?.user?.accessToken;
 const getServerHandle = (req : any) => req?.session?.sso?.user?.serverContextHandle
 
-const isAuthorized = (username:string) => true; //['en21165'].includes(username);
+const isAuthorized = (username:string) => true; 
 
 const DBLayer = require('f://Apps/node/sqliteapp/connect');
 
 app.use('/mysso/ws/protected/secret', (req, res) => {
   const username = getUserName(req);
   const accessToken = getAccessToken(req);
-  //const serverContextHandle = getServerHandle(req);
-  //console.log('srv handle %o', serverContextHandle);
-  //res.json({hello: username});
+
   if (isAuthorized(username)) {
   console.log('accessToken %o', accessToken);
-  /*
-  const logonToken = logonUser(
-  'en21165',
-  '****',
-  'eninet',
-  4,
-  0
-);
-  console.log('logonToken %o', logonToken);
-  */
-  //const handle_str = 
 
 
 	const packageName = 'Negotiate';
@@ -145,10 +132,7 @@ app.use('/mysso/ws/protected/secret', (req, res) => {
 	//sspi.ImpersonateSecurityContext(serverContextHandle);
 	const new_access_token = sspi.OpenThreadToken();
 	impersonateLoggedOnUser(new_access_token);
-<<<<<<< HEAD
 	// TEST 1 impersonateLoggedOnUser : 'Access is denied.'
-=======
->>>>>>> 157f03c53a0f5ac38ff8cb69210f6a6fe8f378e1
 	sspi.RevertSecurityContext(serverContextHandle);
 	sspi.CloseHandle(new_access_token);
 	
@@ -168,22 +152,7 @@ app.use('/mysso/ws/protected/secret', (req, res) => {
 		return res.json(ret);
 	}
   const db = DBLayer.sqlite_connect(callback);
-<<<<<<< HEAD
-  // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'
-=======
-  /* accesss is denied
-  https://stackoverflow.com/questions/60205712/access-denied-in-windows-cmd-but-working-in-powershell
-  const path = String.raw`\\ENNf2001.eni.pri\oper\RUBEIS\LONG TERM CHARTERING\05. APPLICATIVO SCORING MODEL SHIP TENDER\DB\bid.s3db`;
-  try {
-    const test = fs.existsSync(path); 
-	res.json({hello: username, path_found: test});
-  }
-  catch(error:any) {
-		  console.log('fs.existsSync :%o', error);
-		  res.json({hello: username, path_found: 'error'});
-		}*/
->>>>>>> 157f03c53a0f5ac38ff8cb69210f6a6fe8f378e1
-  
+  // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'  
   } else {
 	res.json({hello: username, authorized: false});
   }
