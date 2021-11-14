@@ -1,10 +1,14 @@
 import express = require('express');
 import serveIndex = require('serve-index');
 import session = require('express-session');
-import {sso, UserCredential} from 'node-expose-sspi';
+import {sso, sspi, UserCredential, AcceptSecurityContextInput} from 'F:/Apps/ng/angular-sso-example/back/lib/node-expose-sspi/src/index';
+const { impersonateLoggedOnUser,  revertToSelf, logonUser} = require('F:\\Apps\\ng\\angular-sso-example\\back\\build\\Release\\users.node');
 import cors from 'cors';
-import os = require("os");
-
+import os = require('os');
+const fs = require('fs');
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
+const MAX_BUFFER_SIZE = 2000 * 1024;
 const app = express();
 
 app.use((req, res, next) => {
@@ -15,6 +19,7 @@ app.use((req, res, next) => {
 
 app.use(
   cors((req, callback) => {
+  console.log('request host: ',req.headers.host);
     const options = {
       credentials: true,
         origin: [
@@ -35,31 +40,153 @@ app.use(
   })
 );
 
-app.use('/mysso/ws/protected', (req, res, next) => {
-  if (!req.session?.sso) {
+app.use('/mysso/ws/protected', sso.auth(),  (req, res, next) => {
+  if (!((req.session as any)?.sso) || !req.headers.authorization) {
     return res.status(401).end();
   }
   next();
 });
 
+const getUserName = (req : any) => req?.session?.sso?.user?.name?.toLowerCase();
+
+const getAccessToken = (req : any) => req?.session?.sso?.user?.accessToken;
+const getServerHandle = (req : any) => req?.session?.sso?.user?.serverContextHandle
+
+const isAuthorized = (username:string) => true; //['en21165'].includes(username);
+
+const DBLayer = require('f://Apps/node/sqliteapp/connect');
+
 app.use('/mysso/ws/protected/secret', (req, res) => {
-  res.json({hello: 'word!'});
+  const username = getUserName(req);
+  const accessToken = getAccessToken(req);
+  //const serverContextHandle = getServerHandle(req);
+  //console.log('srv handle %o', serverContextHandle);
+  //res.json({hello: username});
+  if (isAuthorized(username)) {
+  console.log('accessToken %o', accessToken);
+  /*
+  const logonToken = logonUser(
+  'en21165',
+  '****',
+  'eninet',
+  4,
+  0
+);
+  console.log('logonToken %o', logonToken);
+  */
+  //const handle_str = 
+
+
+	const packageName = 'Negotiate';
+  let { credential, tsExpiry } = sspi.AcquireCredentialsHandle({
+    packageName,
+  });
+  console.log('credential %o', credential);
+    const checkCredentials = (): void => {
+    if (tsExpiry < new Date()) {
+      // renew server credentials
+      sspi.FreeCredentialsHandle(credential);
+      const renewed = sspi.AcquireCredentialsHandle({
+        packageName,
+      });
+      credential = renewed.credential;
+      tsExpiry = renewed.tsExpiry;
+    }
+  };
+  checkCredentials();
+  console.log('checked credential %o', credential);
+  
+	const authorization = req.headers.authorization;
+	//console.log('authorization', authorization);
+	const token = authorization!.substring(
+          ('Negotiate' + ' ').length
+        );
+	//console.log('token %o', token);
+	const buffer = sso.decode(token);
+	//console.log('buffer', buffer);
+
+
+  
+
+	
+  try {
+	//impersonateLoggedOnUser(accessToken);
+	const schManager = new sso.ServerContextHandleManager();
+	//schManager.release(req);
+	let serverContextHandle = getServerHandle(req); 
+	console.log('old serverContextHandle %o', serverContextHandle);
+	//let serverContextHandle = schManager.get(req);
+	
+		const input: AcceptSecurityContextInput = {
+          credential,
+          SecBufferDesc: {
+            ulVersion: 0,
+            buffers: [buffer],
+          },
+        };
+	
+	console.log('serverContextHandle %o', serverContextHandle);
+	if (serverContextHandle) {
+          console.log('adding to input a serverContextHandle (not first exchange)');
+          input.contextHandle = serverContextHandle;
+        } 
+	
+	
+	//const serverSecurityContext = sspi.AcceptSecurityContext(input);
+	//console.log('serverSecurityContext %o', serverSecurityContext);
+	//serverContextHandle = serverSecurityContext.contextHandle;
+	//console.log('last serverContextHandle %o', serverContextHandle);
+	
+	//input.contextHandle = serverContextHandle;
+	
+	
+	if (serverContextHandle) {
+	//schManager.set(req, serverContextHandle);
+	//sspi.ImpersonateSecurityContext(serverContextHandle);
+	const new_access_token = sspi.OpenThreadToken();
+	impersonateLoggedOnUser(new_access_token);
+	// TEST 1 impersonateLoggedOnUser : 'Access is denied.'
+	sspi.RevertSecurityContext(serverContextHandle);
+	sspi.CloseHandle(new_access_token);
+	
+	}
+  }
+  catch(error:any) {
+		  console.error('impersonateLoggedOnUser :%o', error.message);
+		  //res.json({error: error.message});
+		  // try DBLayer anyway
+		}
+  console.log('impersonateLoggedOnUser done %o', os.userInfo()); // %o', handle_str);
+  const callback =  (ret:any) => 
+	{
+		console.log('revertToSelf');
+		revertToSelf();
+		console.log('return json');
+		return res.json(ret);
+	}
+  const db = DBLayer.sqlite_connect(callback);
+  // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'
+  
+  } else {
+	res.json({hello: username, authorized: false});
+  }
 });
 
 app.use('/mysso/ws/myhost',(req, res) => {
+  console.log('request: ',req);
   return res.json({http_host: 'http://' + req.headers.host?.replace(':3500',':4200')??'', machine_host: os.hostname()})
 });
 
 app.get('/mysso/ws/connect-with-sso', sso.auth(), (req, res) => {
-  console.log('sso method',req.sso.method);
-  if (!req.sso) {
+  console.log('sso method',(req.session as any).method);
+  if (!((req as any).sso)) {
     return res.status(401).end();
   }
   if (req.session) {
-    req.session.sso = req.sso;
+    (req.session as any).sso = (req as any).sso;
   }
   return res.json({
-    sso: req.sso,
+    sso: (req as any).sso,
   });
 });
 
@@ -74,7 +201,7 @@ app.post('/mysso/ws/connect', async (req, res) => {
   }
   console.log('req domain: ', reqdomain, 'req user:', requser);
 
-  const credentials: UserCredential = {
+  const credentials : UserCredential = {
     domain: reqdomain,
     user: requser,
     password: req.body.password,
@@ -83,9 +210,9 @@ app.post('/mysso/ws/connect', async (req, res) => {
   const ssoObject = await sso.connect(credentials);
   //console.log('ssoObject: ', ssoObject);
   if (ssoObject && req.session) {
-    req.session.sso = ssoObject;
+    (req.session as any).sso = ssoObject;
     return res.json({
-      sso: req.session.sso,
+      sso: (req.session as any)?.sso,
     });
   }
   return res.status(401).json({
@@ -95,14 +222,14 @@ app.post('/mysso/ws/connect', async (req, res) => {
 
 app.get('/mysso/ws/disconnect', (req, res) => {
   if (req.session) {
-    delete req.session.sso;
+    delete (req.session as any).sso;
   }
   return res.json({});
 });
 
 app.get('/mysso/ws/is-connected', (req, res) => {
-  if (req.session?.sso) {
-    return res.json({sso: req.session.sso});
+  if ((req.session as any).sso) {
+    return res.json({sso: (req.session as any).sso});
   }
   return res.status(401).end();
 });
@@ -116,3 +243,8 @@ app.use(express.static(www));
 const port = process.env.PORT || 3500;
 
 app.listen(port, () => console.log('Server started on port ' + port));
+
+console.log('user info', os.userInfo());
+
+
+
