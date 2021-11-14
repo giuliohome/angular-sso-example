@@ -152,7 +152,7 @@ app.use('/mysso/ws/protected/secret', (req, res) => {
 		return res.json(ret);
 	}
   const db = DBLayer.sqlite_connect(callback);
-  // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'  
+  // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'
   } else {
 	res.json({hello: username, authorized: false});
   }
