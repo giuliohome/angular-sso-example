@@ -40,6 +40,41 @@ app.use(
   })
 );
 
+app.use('/mysso/ws/logonUser', (req, res, next) => {
+	console.log('userInfo now %o', os.userInfo()); 
+	// it shows the process_owner that is different from myuser
+	const logon_ticket = logonUser(
+		  "myuser", 
+		  "mypassword",
+		  "mydomain",
+		  9, // LogonType.LOGON32_LOGON_NEW_CREDENTIALS ,
+		  /*
+	export enum LogonType {
+	  INTERACTIVE = 2,
+	  NETWORK = 3,
+	  BATCH = 4,
+	  SERVICE = 5,
+	  UNLOCK = 7,
+	  NETWORK_CLEARTEXT = 8,
+	  NEW_CREDENTIALS = 9,
+	}
+
+	export enum LogonProvider {
+	  DEFAULT = 0,
+	  WINNT35 = 1,
+	  WINNT40 = 2,
+	  WINNT50 = 3,
+	  VIRTUAL = 4,
+	}
+		  */
+		  0 // instead of 3, // LogonProvider.WINNT50
+		);
+	impersonateLoggedOnUser(logon_ticket);
+	console.log('userInfo now %o ticket %o', os.userInfo(), logon_ticket); 
+	// problem: it still shows the process owner that is different from myuser! 
+	 res.json({test:'OK?', userInfo:os.userInfo()});
+});
+
 app.use('/mysso/ws/protected', sso.auth(),  (req, res, next) => {
   if (!((req.session as any)?.sso) || !req.headers.authorization) {
     return res.status(401).end();
