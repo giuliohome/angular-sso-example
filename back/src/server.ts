@@ -43,11 +43,17 @@ app.use(
 app.use('/mysso/ws/logonUser', (req, res, next) => {
 	console.log('userInfo now %o', os.userInfo()); 
 	// it shows the process_owner that is different from myuser
+	console.log('user %s domain %s',
+		  process.env.myuser, 
+		  process.env.mydomain
+	);
 	const logon_ticket = logonUser(
-		  "myuser", 
-		  "mypassword",
-		  "mydomain",
-		  9, // LogonType.LOGON32_LOGON_NEW_CREDENTIALS ,
+		  process.env.myuser, 
+		  process.env.mypassword,
+		  process.env.mydomain,
+		  // all the others give error "The user name or password is incorrect."
+		  9, //  LogonType.LOGON32_LOGON_NEW_CREDENTIALS ,
+		  // it has no effect as impersonation 
 		  /*
 	export enum LogonType {
 	  INTERACTIVE = 2,
