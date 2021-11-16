@@ -1,0 +1,1 @@
+whoami > F:\Apps\ng\angular-sso-example\back\whoami.txt

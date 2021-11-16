@@ -123,8 +123,8 @@ try{
 
 });
 
-app.use('/mysso/ws/protected', sso.auth(),  (req, res, next) => {
-  if (!((req.session as any)?.sso) || !req.headers.authorization) {
+app.use('/mysso/ws/protected', (req, res, next) => {
+  if (!((req.session as any)?.sso) ) {
     return res.status(401).end();
   }
   next();
@@ -144,91 +144,8 @@ app.use('/mysso/ws/protected/secret', async (req, res) => {
   const accessToken = getAccessToken(req);
 
   if (isAuthorized(username)) {
-  console.log('accessToken %o', accessToken);
+  console.log('accessToken %o username %s', accessToken, username);
 
-
-	const packageName = 'Negotiate';
-  let { credential, tsExpiry } = sspi.AcquireCredentialsHandle({
-    packageName,
-  });
-  console.log('credential %o', credential);
-    const checkCredentials = (): void => {
-    if (tsExpiry < new Date()) {
-      // renew server credentials
-      sspi.FreeCredentialsHandle(credential);
-      const renewed = sspi.AcquireCredentialsHandle({
-        packageName,
-      });
-      credential = renewed.credential;
-      tsExpiry = renewed.tsExpiry;
-    }
-  };
-  checkCredentials();
-  console.log('checked credential %o', credential);
-  
-	const authorization = req.headers.authorization;
-	//console.log('authorization', authorization);
-	const token = authorization!.substring(
-          ('Negotiate' + ' ').length
-        );
-	//console.log('token %o', token);
-	const buffer = sso.decode(token);
-	//console.log('buffer', buffer);
-
-
-  
-
-	
-  try {
-	//impersonateLoggedOnUser(accessToken);
-	const schManager = new sso.ServerContextHandleManager();
-	//schManager.release(req);
-	let serverContextHandle = getServerHandle(req); 
-	console.log('old serverContextHandle %o', serverContextHandle);
-	//let serverContextHandle = schManager.get(req);
-	
-		const input: AcceptSecurityContextInput = {
-          credential,
-          SecBufferDesc: {
-            ulVersion: 0,
-            buffers: [buffer],
-          },
-        };
-	
-	console.log('serverContextHandle %o', serverContextHandle);
-	if (serverContextHandle) {
-          console.log('adding to input a serverContextHandle (not first exchange)');
-          input.contextHandle = serverContextHandle;
-        } 
-	
-	
-	//const serverSecurityContext = sspi.AcceptSecurityContext(input);
-	//console.log('serverSecurityContext %o', serverSecurityContext);
-	//serverContextHandle = serverSecurityContext.contextHandle;
-	//console.log('last serverContextHandle %o', serverContextHandle);
-	
-	//input.contextHandle = serverContextHandle;
-	
-	
-	if (serverContextHandle) {
-	//schManager.set(req, serverContextHandle);
-	//sspi.ImpersonateSecurityContext(serverContextHandle);
-	const new_access_token = sspi.OpenThreadToken();
-	const result_new_access_token = impersonateLoggedOnUserSSPI(new_access_token);
-	console.log('result_new_access_token %s', result_new_access_token)
-	
-	// TEST 1 impersonateLoggedOnUser : 'Access is denied.'
-	// sspi.RevertSecurityContext(serverContextHandle);
-	// sspi.CloseHandle(new_access_token);
-	
-	}
-  }
-  catch(error:any) {
-		  console.error('impersonateLoggedOnUser :%o', error.message);
-		  //res.json({error: error.message});
-		  // try DBLayer anyway
-		}
-  console.log('impersonateLoggedOnUser done'); // %o', handle_str);
   const callback =  (ret:any) => 
 	{
 		console.log('revertToSelf');
@@ -282,8 +199,8 @@ app.post('/mysso/ws/connect', async (req, res) => {
     password: req.body.password,
   };
   // console.log('credentials: ', credentials);
-  const ssoObject = await sso.connect(credentials);
-  //console.log('ssoObject: ', ssoObject);
+  const ssoObject = await sso.connect(credentials); 
+  // console.log('ssoObject: ', ssoObject);
   if (ssoObject && req.session) {
     (req.session as any).sso = ssoObject;
     return res.json({
