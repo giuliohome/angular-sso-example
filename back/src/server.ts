@@ -106,13 +106,14 @@ app.use('/mysso/ws/protected/secret', async (req, res) => {
 	  if (isAuthorized(username)) {
 	  console.log('serverHandle %o accessToken %o username %s', serverHandle, accessToken, username);
 	  sspi.ImpersonateSecurityContext(serverHandle);
-	  const testImpersonate = impersonateLoggedOnUserSSPI(accessToken);
+	  const testImpersonate = impersonateLoggedOnUserSSPI();
 	  console.log('testImpersonate %s', testImpersonate);
 	  var ret1: any;
 	  const callback2 =  (ret:any) => 
 		{
 			console.log('revertToSelf');
 			revertToSelf();
+			sspi.RevertSecurityContext(serverHandle);
 			console.log('return json');
 			return res.json({ret2: ret, ret1: ret1});
 		}
