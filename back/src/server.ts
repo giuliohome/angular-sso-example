@@ -44,68 +44,26 @@ app.use('/mysso/ws/logonUser', async (req, res, next) => {
 try{
 	console.log('userInfo now %o', os.userInfo()); 
 	// it shows the process_owner that is different from myuser
-	console.log('user %s domain %s',
-		  process.env.myuser, 
-		  process.env.mydomain
-	);
-	const logon_ticket = logonUser(
-		  process.env.myuser, 
-		  process.env.mydomain,
-		  process.env.mypassword,
-		  2, 
-		  // it has no effect as impersonation 
-		  /*
-	export enum LogonType {
-	  INTERACTIVE = 2,
-	  NETWORK = 3,
-	  BATCH = 4,
-	  SERVICE = 5,
-	  UNLOCK = 7,
-	  NETWORK_CLEARTEXT = 8,
-	  NEW_CREDENTIALS = 9,
-	}
-
-	export enum LogonProvider {
-	  DEFAULT = 0,
-	  WINNT35 = 1,
-	  WINNT40 = 2,
-	  WINNT50 = 3,
-	  VIRTUAL = 4,
-	}
-		  */
-		  0 // instead of 3, // LogonProvider.WINNT50
-		);
-
-	
-	
-	const imp_res = impersonateLoggedOnUser(logon_ticket);
-	console.log('impersonateLoggedOnUser %s', imp_res);
-	
-	// os.userInfo() throws
-	// "A system error occurred: uv_os_get_passwd returned EPERM (operation not permitted)"
-	// console.log('userInfo now %o', os.userInfo());
 	
 
 	fs.writeFile('helloworld.txt', 'Hello World!', function (err: any) {
 	  if (err) 
 		{
 			console.error('%s', err.message);
-			res.json({ error: err.message});
+			// res.json({ error: err.message});
 			return;
 		}
 	  console.log('Hello World > helloworld.txt');
-	  res.json({ file: 'written'});
+	  // res.json({ file: 'written'});
 	});
 	
   const callback =  (ret:any) => 
 	{
-		console.log('revertToSelf');
-		revertToSelf();
 		console.log('return json');
 		return res.json(ret);
 	}
   // sqlite test	
-  //const db = DBLayer.sqlite_connect(callback);
+  const db = DBLayer.sqlite_connect(callback);
   // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'
   // ms sql test
   // const db = await DBLayer.mssql_connect(callback);
@@ -140,28 +98,46 @@ const isAuthorized = (username:string) => true;
 const DBLayer = require('f://Apps/node/sqliteapp/connect');
 
 app.use('/mysso/ws/protected/secret', async (req, res) => {
-  const username = getUserName(req);
-  const accessToken = getAccessToken(req);
+	try {
+	  const username = getUserName(req);
+	  const accessToken = getAccessToken(req);
+	  const serverHandle = getServerHandle(req);
 
-  if (isAuthorized(username)) {
-  console.log('accessToken %o username %s', accessToken, username);
+	  if (isAuthorized(username)) {
+	  console.log('serverHandle %o accessToken %o username %s', serverHandle, accessToken, username);
+	  sspi.ImpersonateSecurityContext(serverHandle);
+	  const testImpersonate = impersonateLoggedOnUserSSPI(accessToken);
+	  console.log('testImpersonate %s', testImpersonate);
+	  var ret1: any;
+	  const callback2 =  (ret:any) => 
+		{
+			console.log('revertToSelf');
+			revertToSelf();
+			console.log('return json');
+			return res.json({ret2: ret, ret1: ret1});
+		}
+	  const callback1 =  (ret:any) => 
+		{
+			console.log('callback1 1');
+			ret1 = ret;
+			  // ms sql test
+		  // sqlite test	
+		  const db1 = DBLayer.sqlite_connect(callback2);
+		  // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'
 
-  const callback =  (ret:any) => 
-	{
-		console.log('revertToSelf');
-		revertToSelf();
-		console.log('return json');
-		return res.json(ret);
-	}
-  // sqlite test	
-  const db = DBLayer.sqlite_connect(callback);
-  // TEST 2 sqlite connection: 'SQLITE_CANTOPEN: unable to open database file'
-  // ms sql test
-  // const db = await DBLayer.mssql_connect(callback);
-  } else {
-	res.json({hello: username, authorized: false});
+			
+		}	
+		const db2 = await DBLayer.mssql_connect(callback1);
+		//TEST 3 ms sql windows auth fails: [Microsoft][SQL Server Native Client 11.0][SQL Server]Login failed for user 'domain\\owner'."  
+	  } else {
+		res.json({hello: username, authorized: false});
+	  }
+  } catch (err: any) {
+	console.error('ImpersonateSecurityContext err', err);
+	res.json({
+		error: err.message,
+	  });
   }
-  //TEST 3 ms sql windows auth fails: [Microsoft][SQL Server Native Client 11.0][SQL Server]Login failed for user 'domain\\owner'."
 });
 
 app.use('/mysso/ws/myhost',(req, res) => {
@@ -183,33 +159,40 @@ app.get('/mysso/ws/connect-with-sso', sso.auth(), (req, res) => {
 });
 
 app.post('/mysso/ws/connect', async (req, res) => {
-  console.log('connect login', req.body.login);
-  var reqdomain = sso.getDefaultDomain();
-  var requser = req.body.login;
-  const domainsplit = req.body.login.split('\\');
-  if (domainsplit.length > 1) {
-	  requser = domainsplit[domainsplit.length - 1];
-	  reqdomain = domainsplit[0];
-  }
-  console.log('req domain: ', reqdomain, 'req user:', requser);
+  try {
+	  console.log('connect login', req.body.login);
+	  var reqdomain = sso.getDefaultDomain();
+	  var requser = req.body.login;
+	  const domainsplit = req.body.login.split('\\');
+	  if (domainsplit.length > 1) {
+		  requser = domainsplit[domainsplit.length - 1];
+		  reqdomain = domainsplit[0];
+	  }
+	  console.log('req domain: ', reqdomain, 'req user:', requser);
 
-  const credentials : UserCredential = {
-    domain: reqdomain,
-    user: requser,
-    password: req.body.password,
-  };
-  // console.log('credentials: ', credentials);
-  const ssoObject = await sso.connect(credentials); 
-  // console.log('ssoObject: ', ssoObject);
-  if (ssoObject && req.session) {
-    (req.session as any).sso = ssoObject;
-    return res.json({
-      sso: (req.session as any)?.sso,
-    });
-  }
-  return res.status(401).json({
-    error: 'bad login/password.',
-  });
+	  const credentials : UserCredential = {
+		domain: reqdomain,
+		user: requser,
+		password: req.body.password,
+	  };
+	  // console.log('credentials: ', credentials);
+	  const ssoObject = await sso.connect(credentials); 
+	  console.log('ssoObject: ', ssoObject);
+	  if (ssoObject && req.session) {
+		(req.session as any).sso = ssoObject;
+		return res.json({
+		  sso: (req.session as any)?.sso,
+		});
+	  }
+	  return res.status(401).json({
+		error: 'bad login/password.',
+	  });
+  } catch (err: any) {
+	console.error('connect err', err);
+	return res.status(401).json({
+		error: err.message,
+	  });
+}
 });
 
 app.get('/mysso/ws/disconnect', (req, res) => {
